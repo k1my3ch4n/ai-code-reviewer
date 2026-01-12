@@ -30,10 +30,21 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Check dist folder
+      - name: Check dist folder exists
         run: |
           if [ ! -f "dist/index.js" ]; then
             echo "dist/index.js not found!"
             exit 1
           fi
           echo "Build successful - dist/index.js exists"
+
+      - name: Check dist is up to date
+        run: |
+          if [ "$(git diff --ignore-space-at-eol --text dist/ | wc -l)" -gt "0" ]; then
+            echo "::error::dist/ 폴더가 최신 상태가 아닙니다. 'npm run build'를 실행하고 dist/ 폴더를 커밋해주세요."
+            echo ""
+            echo "변경된 파일:"
+            git diff --stat dist/
+            exit 1
+          fi
+          echo "dist/ 폴더가 최신 상태입니다."
