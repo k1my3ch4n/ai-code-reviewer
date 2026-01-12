@@ -162,7 +162,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: your-username/ai-code-reviewer@v1
+      - uses: k1my3ch4n/ai-code-reviewer@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           ai-provider: 'claude'
