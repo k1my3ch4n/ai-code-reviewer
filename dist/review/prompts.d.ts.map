@@ -1,1 +1,0 @@
-{"version":3,"file":"prompts.d.ts","sourceRoot":"","sources":["file:///C:/project/ai-code-reviewer/src/review/prompts.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,UAAU,EAAE,eAAe,EAAE,MAAM,UAAU,CAAC;AAEvD,UAAU,YAAY;IACpB,QAAQ,EAAE,IAAI,GAAG,IAAI,CAAC;IACtB,MAAM,EAAE,eAAe,CAAC;IACxB,KAAK,EAAE,UAAU,EAAE,CAAC;CACrB;AAwED,wBAAgB,kBAAkB,CAAC,MAAM,EAAE,YAAY,GAAG,MAAM,CA6B/D"}

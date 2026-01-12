@@ -1,1 +1,0 @@
-{"version":3,"file":"formatter.d.ts","sourceRoot":"","sources":["file:///C:/project/ai-code-reviewer/src/review/formatter.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAc,MAAM,UAAU,CAAC;AAEpD,UAAU,YAAY;IACpB,QAAQ,EAAE,IAAI,GAAG,IAAI,CAAC;IACtB,aAAa,EAAE,MAAM,CAAC;IACtB,UAAU,EAAE,MAAM,CAAC;CACpB;AAyBD,wBAAgB,mBAAmB,CACjC,MAAM,EAAE,YAAY,EACpB,MAAM,EAAE,YAAY,GACnB,MAAM,CA8CR"}
