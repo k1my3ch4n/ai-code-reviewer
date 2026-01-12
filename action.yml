@@ -1,0 +1,43 @@
+name: 'AI Code Reviewer'
+description: 'AI 기반 자동 코드 리뷰 (Claude/Gemini 지원)'
+author: 'Your Name'
+
+branding:
+  icon: 'code'
+  color: 'purple'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access (PR 코멘트 작성에 필요)'
+    required: true
+  ai-provider:
+    description: 'AI provider to use (claude 또는 gemini)'
+    required: true
+    default: 'claude'
+  claude-api-key:
+    description: 'Anthropic Claude API key (ai-provider가 claude일 때 필수)'
+    required: false
+  gemini-api-key:
+    description: 'Google Gemini API key (ai-provider가 gemini일 때 필수)'
+    required: false
+  language:
+    description: 'Review output language (ko: 한국어, en: English)'
+    required: false
+    default: 'ko'
+  model:
+    description: 'AI model to use (claude: claude-sonnet-4-20250514, gemini: gemini-1.5-flash)'
+    required: false
+  exclude-patterns:
+    description: 'Glob patterns to exclude from review (comma-separated)'
+    required: false
+    default: '*.lock,*.md,*.json,*.yml,*.yaml'
+
+outputs:
+  review-comment:
+    description: 'The generated review comment'
+  files-reviewed:
+    description: 'Number of files reviewed'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
