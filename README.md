@@ -97,6 +97,19 @@ jobs:
     exclude-patterns: '*.lock,*.md,*.json,*.yml,*.yaml,*.svg,*.png,dist/*'
 ```
 
+### 특정 모델 지정하기
+
+```yaml
+# Gemini Pro 모델 사용
+- name: AI Code Review
+  uses: k1my3ch4n/ai-code-reviewer@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    ai-provider: 'gemini'
+    gemini-api-key: ${{ secrets.GEMINI_API_KEY }}
+    model: 'gemini-1.5-pro'
+```
+
 ---
 
 ## 입력 파라미터
@@ -108,8 +121,23 @@ jobs:
 | `claude-api-key` | - | - | Claude API 키 (Claude 사용 시 필수) |
 | `gemini-api-key` | - | - | Gemini API 키 (Gemini 사용 시 필수) |
 | `language` | - | `ko` | 리뷰 언어 (`ko`: 한국어, `en`: 영어) |
-| `model` | - | 자동 | AI 모델 지정 |
+| `model` | - | 아래 참고 | AI 모델 지정 (지정하지 않으면 기본 모델 사용) |
 | `exclude-patterns` | - | `*.lock,*.md,...` | 리뷰 제외 파일 패턴 (쉼표 구분) |
+
+### 지원 모델
+
+#### Claude
+| 모델 | 설명 |
+|-----|------|
+| `claude-sonnet-4-20250514` | 기본값. 균형 잡힌 성능 |
+| `claude-opus-4-20250514` | 최고 성능, 복잡한 코드 분석에 적합 |
+
+#### Gemini
+| 모델 | 무료 티어 | 설명 |
+|-----|----------|------|
+| `gemini-1.5-flash` | O (분당 15회) | 기본값. 빠른 속도 |
+| `gemini-1.5-pro` | O (분당 2회) | 더 정교한 분석 |
+| `gemini-2.0-flash` | O (분당 10회) | 최신 모델 |
 
 ---
 
