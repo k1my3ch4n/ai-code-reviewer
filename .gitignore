@@ -1,0 +1,18 @@
+node_modules/
+*.log
+.env
+.env.local
+*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build (dist는 GitHub Actions에서 필요하므로 포함)
+# dist/
