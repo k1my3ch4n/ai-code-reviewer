@@ -17,7 +17,7 @@
     "gemini",
     "automation"
   ],
-  "author": "",
+  "author": "k1my3ch4n",
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.10.1",
