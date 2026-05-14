@@ -37122,6 +37122,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ClaudeClient = void 0;
 const sdk_1 = __importDefault(__nccwpck_require__(121));
+const retry_1 = __nccwpck_require__(936);
 class ClaudeClient {
     client;
     model;
@@ -37132,16 +37133,11 @@ class ClaudeClient {
         this.model = config.model || 'claude-sonnet-4-20250514';
     }
     async review(prompt) {
-        const response = await this.client.messages.create({
+        const response = await (0, retry_1.withRetry)(() => this.client.messages.create({
             model: this.model,
             max_tokens: 4096,
-            messages: [
-                {
-                    role: 'user',
-                    content: prompt,
-                },
-            ],
-        });
+            messages: [{ role: 'user', content: prompt }],
+        }, { signal: AbortSignal.timeout(60_000) }));
         const content = response.content[0];
         if (content.type !== 'text') {
             throw new Error('Unexpected response type from Claude');
@@ -37179,6 +37175,7 @@ exports.ClaudeClient = ClaudeClient;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GeminiClient = void 0;
 const generative_ai_1 = __nccwpck_require__(7656);
+const retry_1 = __nccwpck_require__(936);
 class GeminiClient {
     model;
     constructor(config) {
@@ -37187,7 +37184,7 @@ class GeminiClient {
         this.model = genAI.getGenerativeModel({ model: modelName });
     }
     async review(prompt) {
-        const result = await this.model.generateContent(prompt);
+        const result = await (0, retry_1.withRetry)(() => this.model.generateContent(prompt, { signal: AbortSignal.timeout(60_000) }));
         const response = result.response;
         const text = response.text();
         return this.parseResponse(text);
@@ -37250,6 +37247,39 @@ var claude_2 = __nccwpck_require__(6406);
 Object.defineProperty(exports, "ClaudeClient", ({ enumerable: true, get: function () { return claude_2.ClaudeClient; } }));
 var gemini_2 = __nccwpck_require__(9055);
 Object.defineProperty(exports, "GeminiClient", ({ enumerable: true, get: function () { return gemini_2.GeminiClient; } }));
+
+
+/***/ }),
+
+/***/ 936:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.withRetry = withRetry;
+const RETRYABLE_PATTERNS = ['429', '503', 'rate limit', 'too many requests', 'overloaded', 'service unavailable'];
+function isRetryable(error) {
+    if (!(error instanceof Error))
+        return false;
+    const msg = error.message.toLowerCase();
+    return RETRYABLE_PATTERNS.some((p) => msg.includes(p));
+}
+async function withRetry(fn, maxRetries = 3) {
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        }
+        catch (error) {
+            lastError = error;
+            if (attempt === maxRetries || !isRetryable(error))
+                throw error;
+            await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        }
+    }
+    throw lastError;
+}
 
 
 /***/ }),
@@ -37318,7 +37348,7 @@ class GitHubClient {
         };
     }
     async getChangedFiles(prInfo) {
-        const { data: files } = await this.octokit.rest.pulls.listFiles({
+        const files = await this.octokit.paginate(this.octokit.rest.pulls.listFiles, {
             owner: prInfo.owner,
             repo: prInfo.repo,
             pull_number: prInfo.pullNumber,
@@ -37333,12 +37363,34 @@ class GitHubClient {
         }));
     }
     async createReviewComment(prInfo, body) {
-        await this.octokit.rest.issues.createComment({
+        const existingCommentId = await this.findExistingReviewComment(prInfo);
+        if (existingCommentId) {
+            await this.octokit.rest.issues.updateComment({
+                owner: prInfo.owner,
+                repo: prInfo.repo,
+                comment_id: existingCommentId,
+                body,
+            });
+        }
+        else {
+            await this.octokit.rest.issues.createComment({
+                owner: prInfo.owner,
+                repo: prInfo.repo,
+                issue_number: prInfo.pullNumber,
+                body,
+            });
+        }
+    }
+    async findExistingReviewComment(prInfo) {
+        const { data: comments } = await this.octokit.rest.issues.listComments({
             owner: prInfo.owner,
             repo: prInfo.repo,
             issue_number: prInfo.pullNumber,
-            body,
+            per_page: 100,
         });
+        const found = comments.find((comment) => comment.user?.type === 'Bot' &&
+            comment.body?.includes('<!-- ai-code-reviewer -->'));
+        return found?.id ?? null;
     }
 }
 exports.GitHubClient = GitHubClient;
@@ -37401,23 +37453,34 @@ async function run() {
         core.info(`Found ${allFiles.length} changed files`);
         const files = (0, review_1.filterFiles)(allFiles, inputs.excludePatterns);
         core.info(`${files.length} files after filtering`);
+        const skippedFiles = files.filter((f) => !f.patch).map((f) => f.filename);
+        if (skippedFiles.length > 0) {
+            core.info(`${skippedFiles.length} file(s) skipped (no diff available): ${skippedFiles.join(', ')}`);
+        }
         if (!(0, review_1.hasReviewableChanges)(files)) {
             core.info('No reviewable changes found. Skipping review.');
             core.setOutput('review-comment', '');
             core.setOutput('files-reviewed', 0);
             return;
         }
-        const prompt = (0, review_1.createReviewPrompt)({
-            language: inputs.language,
-            prInfo,
-            files,
-        });
         core.info('Requesting AI review...');
-        const reviewResult = await aiClient.review(prompt);
+        const batches = (0, review_1.splitFilesIntoBatches)(files);
+        core.info(`Processing ${batches.length} batch(es)...`);
+        const batchResults = await Promise.all(batches.map((batchFiles) => {
+            const prompt = (0, review_1.createReviewPrompt)({ language: inputs.language, prInfo, files: batchFiles });
+            return aiClient.review(prompt);
+        }));
+        const reviewResult = batchResults.reduce((merged, result, index) => ({
+            summary: index === 0 ? result.summary : `${merged.summary}\n${result.summary}`,
+            improvements: [...merged.improvements, ...result.improvements],
+            suggestions: [...merged.suggestions, ...result.suggestions],
+            positives: [...merged.positives, ...result.positives],
+        }), { summary: '', improvements: [], suggestions: [], positives: [] });
         const comment = (0, review_1.formatReviewComment)(reviewResult, {
             language: inputs.language,
             filesReviewed: files.length,
             aiProvider: inputs.aiProvider,
+            skippedFiles,
         });
         await githubClient.createReviewComment(prInfo, comment);
         core.info('Review comment posted successfully!');
@@ -37433,6 +37496,18 @@ async function run() {
         }
     }
 }
+const VALID_MODELS = {
+    claude: [
+        'claude-sonnet-4-20250514',
+        'claude-opus-4-20250514',
+        'claude-haiku-4-20250514',
+    ],
+    gemini: [
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+        'gemini-2.0-flash',
+    ],
+};
 function getInputs() {
     const aiProvider = core.getInput('ai-provider', { required: true });
     if (aiProvider !== 'claude' && aiProvider !== 'gemini') {
@@ -37442,6 +37517,13 @@ function getInputs() {
     if (language !== 'ko' && language !== 'en') {
         throw new Error(`Invalid language: ${language}. Must be 'ko' or 'en'`);
     }
+    const modelInput = core.getInput('model') || undefined;
+    if (modelInput) {
+        const validModels = VALID_MODELS[aiProvider];
+        if (!validModels.includes(modelInput)) {
+            throw new Error(`Invalid model: '${modelInput}' for provider '${aiProvider}'. Valid models: ${validModels.join(', ')}`);
+        }
+    }
     const excludePatternsInput = core.getInput('exclude-patterns') || '*.lock,*.md,*.json,*.yml,*.yaml';
     const excludePatterns = excludePatternsInput.split(',').map((p) => p.trim());
     return {
@@ -37450,7 +37532,7 @@ function getInputs() {
         claudeApiKey: core.getInput('claude-api-key'),
         geminiApiKey: core.getInput('gemini-api-key'),
         language,
-        model: core.getInput('model') || undefined,
+        model: modelInput,
         excludePatterns,
     };
 }
@@ -37471,7 +37553,7 @@ const minimatch_1 = __nccwpck_require__(6507);
 function filterFiles(files, excludePatterns) {
     return files.filter((file) => {
         for (const pattern of excludePatterns) {
-            if ((0, minimatch_1.minimatch)(file.filename, pattern.trim())) {
+            if ((0, minimatch_1.minimatch)(file.filename, pattern.trim(), { matchBase: true })) {
                 return false;
             }
         }
@@ -37502,6 +37584,7 @@ const LABELS = {
         noIssues: '특별히 개선이 필요한 사항이 없습니다.',
         filesReviewed: '검토된 파일',
         poweredBy: '제공',
+        skipped: '리뷰 제외된 파일 (diff 없음)',
     },
     en: {
         title: 'AI Code Review',
@@ -37512,11 +37595,13 @@ const LABELS = {
         noIssues: 'No specific improvements needed.',
         filesReviewed: 'Files Reviewed',
         poweredBy: 'Powered by',
+        skipped: 'Skipped files (no diff available)',
     },
 };
 function formatReviewComment(result, config) {
     const labels = LABELS[config.language];
     const lines = [];
+    lines.push('<!-- ai-code-reviewer -->');
     lines.push(`## 🤖 ${labels.title}`);
     lines.push('');
     // Summary
@@ -37547,10 +37632,26 @@ function formatReviewComment(result, config) {
         });
         lines.push('');
     }
+    // Skipped files
+    if (config.skippedFiles && config.skippedFiles.length > 0) {
+        lines.push(`<details><summary>⚠️ ${labels.skipped} (${config.skippedFiles.length})</summary>\n`);
+        config.skippedFiles.forEach((f) => lines.push(`- \`${f}\``));
+        lines.push('\n</details>\n');
+    }
     // Footer
     lines.push('---');
     lines.push(`📊 ${labels.filesReviewed}: ${config.filesReviewed} | ${labels.poweredBy}: ${config.aiProvider.toUpperCase()}`);
     return lines.join('\n');
+}
+const EXT_TO_LANG = {
+    ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx',
+    py: 'python', rb: 'ruby', go: 'go', rs: 'rust', java: 'java',
+    kt: 'kotlin', swift: 'swift', cs: 'csharp', cpp: 'cpp', c: 'c',
+    sh: 'bash', sql: 'sql', html: 'html', css: 'css', scss: 'scss',
+};
+function inferLang(file) {
+    const ext = file?.split('.').pop()?.toLowerCase() ?? '';
+    return EXT_TO_LANG[ext] ?? '';
 }
 function formatItem(item, index) {
     const parts = [];
@@ -37565,8 +37666,9 @@ function formatItem(item, index) {
     header += item.content;
     parts.push(header);
     if (item.code) {
+        const lang = inferLang(item.file);
         parts.push('');
-        parts.push('```suggestion');
+        parts.push(`\`\`\`${lang}`);
         parts.push(item.code);
         parts.push('```');
     }
@@ -37582,9 +37684,10 @@ function formatItem(item, index) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.formatReviewComment = exports.hasReviewableChanges = exports.filterFiles = exports.createReviewPrompt = void 0;
+exports.formatReviewComment = exports.hasReviewableChanges = exports.filterFiles = exports.splitFilesIntoBatches = exports.createReviewPrompt = void 0;
 var prompts_1 = __nccwpck_require__(7963);
 Object.defineProperty(exports, "createReviewPrompt", ({ enumerable: true, get: function () { return prompts_1.createReviewPrompt; } }));
+Object.defineProperty(exports, "splitFilesIntoBatches", ({ enumerable: true, get: function () { return prompts_1.splitFilesIntoBatches; } }));
 var analyzer_1 = __nccwpck_require__(5768);
 Object.defineProperty(exports, "filterFiles", ({ enumerable: true, get: function () { return analyzer_1.filterFiles; } }));
 Object.defineProperty(exports, "hasReviewableChanges", ({ enumerable: true, get: function () { return analyzer_1.hasReviewableChanges; } }));
@@ -37600,7 +37703,27 @@ Object.defineProperty(exports, "formatReviewComment", ({ enumerable: true, get: 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.splitFilesIntoBatches = splitFilesIntoBatches;
 exports.createReviewPrompt = createReviewPrompt;
+function splitFilesIntoBatches(files) {
+    const batches = [];
+    let currentBatch = [];
+    let currentSize = 0;
+    for (const file of files) {
+        const size = file.patch?.length ?? 0;
+        if (currentSize + size > MAX_DIFF_CHARS && currentBatch.length > 0) {
+            batches.push(currentBatch);
+            currentBatch = [];
+            currentSize = 0;
+        }
+        currentBatch.push(file);
+        currentSize += size;
+    }
+    if (currentBatch.length > 0) {
+        batches.push(currentBatch);
+    }
+    return batches;
+}
 const SYSTEM_PROMPTS = {
     ko: `당신은 시니어 소프트웨어 엔지니어로서 코드 리뷰를 수행합니다.
 주어진 Pull Request의 변경사항을 분석하고, 다음 형식의 JSON으로 응답해주세요:
@@ -37669,9 +37792,17 @@ Consider the following when reviewing:
 - Best practices adherence
 - Test coverage`,
 };
+const MAX_TITLE_LENGTH = 200;
+const MAX_BODY_LENGTH = 500;
+const MAX_DIFF_CHARS = 30_000;
+function sanitize(text, maxLength) {
+    return text.slice(0, maxLength);
+}
 function createReviewPrompt(config) {
     const { language, prInfo, files } = config;
     const systemPrompt = SYSTEM_PROMPTS[language];
+    const title = sanitize(prInfo.title, MAX_TITLE_LENGTH);
+    const body = sanitize(prInfo.body || '(설명 없음)', MAX_BODY_LENGTH);
     const filesContent = files
         .filter((f) => f.patch)
         .map((f) => `
@@ -37686,9 +37817,9 @@ ${f.patch}
     return `${systemPrompt}
 
 ## Pull Request 정보
-- 제목: ${prInfo.title}
-- 설명: ${prInfo.body || '(설명 없음)'}
-- Base: ${prInfo.baseBranch} <- Head: ${prInfo.headBranch}
+<pr_title>${title}</pr_title>
+<pr_body>${body}</pr_body>
+<pr_branches>${prInfo.baseBranch} <- ${prInfo.headBranch}</pr_branches>
 
 ## 변경된 파일들
 ${filesContent}
