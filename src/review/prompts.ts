@@ -76,9 +76,19 @@ Consider the following when reviewing:
 - Test coverage`,
 };
 
+const MAX_TITLE_LENGTH = 200;
+const MAX_BODY_LENGTH = 500;
+
+function sanitize(text: string, maxLength: number): string {
+  return text.slice(0, maxLength);
+}
+
 export function createReviewPrompt(config: PromptConfig): string {
   const { language, prInfo, files } = config;
   const systemPrompt = SYSTEM_PROMPTS[language];
+
+  const title = sanitize(prInfo.title, MAX_TITLE_LENGTH);
+  const body = sanitize(prInfo.body || '(설명 없음)', MAX_BODY_LENGTH);
 
   const filesContent = files
     .filter((f) => f.patch)
@@ -97,9 +107,9 @@ ${f.patch}
   return `${systemPrompt}
 
 ## Pull Request 정보
-- 제목: ${prInfo.title}
-- 설명: ${prInfo.body || '(설명 없음)'}
-- Base: ${prInfo.baseBranch} <- Head: ${prInfo.headBranch}
+<pr_title>${title}</pr_title>
+<pr_body>${body}</pr_body>
+<pr_branches>${prInfo.baseBranch} <- ${prInfo.headBranch}</pr_branches>
 
 ## 변경된 파일들
 ${filesContent}
