@@ -27,6 +27,11 @@ async function run(): Promise<void> {
     const files = filterFiles(allFiles, inputs.excludePatterns);
     core.info(`${files.length} files after filtering`);
 
+    const skippedFiles = files.filter((f) => !f.patch).map((f) => f.filename);
+    if (skippedFiles.length > 0) {
+      core.info(`${skippedFiles.length} file(s) skipped (no diff available): ${skippedFiles.join(', ')}`);
+    }
+
     if (!hasReviewableChanges(files)) {
       core.info('No reviewable changes found. Skipping review.');
       core.setOutput('review-comment', '');
@@ -59,6 +64,7 @@ async function run(): Promise<void> {
       language: inputs.language,
       filesReviewed: files.length,
       aiProvider: inputs.aiProvider,
+      skippedFiles,
     });
 
     await githubClient.createReviewComment(prInfo, comment);
@@ -75,6 +81,19 @@ async function run(): Promise<void> {
   }
 }
 
+const VALID_MODELS: Record<string, string[]> = {
+  claude: [
+    'claude-sonnet-4-20250514',
+    'claude-opus-4-20250514',
+    'claude-haiku-4-20250514',
+  ],
+  gemini: [
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+    'gemini-2.0-flash',
+  ],
+};
+
 function getInputs(): ActionInputs {
   const aiProvider = core.getInput('ai-provider', { required: true });
   if (aiProvider !== 'claude' && aiProvider !== 'gemini') {
@@ -86,6 +105,16 @@ function getInputs(): ActionInputs {
     throw new Error(`Invalid language: ${language}. Must be 'ko' or 'en'`);
   }
 
+  const modelInput = core.getInput('model') || undefined;
+  if (modelInput) {
+    const validModels = VALID_MODELS[aiProvider];
+    if (!validModels.includes(modelInput)) {
+      throw new Error(
+        `Invalid model: '${modelInput}' for provider '${aiProvider}'. Valid models: ${validModels.join(', ')}`
+      );
+    }
+  }
+
   const excludePatternsInput = core.getInput('exclude-patterns') || '*.lock,*.md,*.json,*.yml,*.yaml';
   const excludePatterns = excludePatternsInput.split(',').map((p) => p.trim());
 
@@ -95,7 +124,7 @@ function getInputs(): ActionInputs {
     claudeApiKey: core.getInput('claude-api-key'),
     geminiApiKey: core.getInput('gemini-api-key'),
     language,
-    model: core.getInput('model') || undefined,
+    model: modelInput,
     excludePatterns,
   };
 }
