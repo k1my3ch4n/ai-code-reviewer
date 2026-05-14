@@ -6,4 +6,5 @@ export declare class GitHubClient {
     getPullRequestInfo(): PullRequestInfo;
     getChangedFiles(prInfo: PullRequestInfo): Promise<FileChange[]>;
     createReviewComment(prInfo: PullRequestInfo, body: string): Promise<void>;
+    private findExistingReviewComment;
 }

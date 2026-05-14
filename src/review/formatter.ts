@@ -4,6 +4,7 @@ interface FormatConfig {
   language: 'ko' | 'en';
   filesReviewed: number;
   aiProvider: string;
+  skippedFiles?: string[];
 }
 
 const LABELS = {
@@ -16,6 +17,7 @@ const LABELS = {
     noIssues: '특별히 개선이 필요한 사항이 없습니다.',
     filesReviewed: '검토된 파일',
     poweredBy: '제공',
+    skipped: '리뷰 제외된 파일 (diff 없음)',
   },
   en: {
     title: 'AI Code Review',
@@ -26,6 +28,7 @@ const LABELS = {
     noIssues: 'No specific improvements needed.',
     filesReviewed: 'Files Reviewed',
     poweredBy: 'Powered by',
+    skipped: 'Skipped files (no diff available)',
   },
 };
 
@@ -36,6 +39,7 @@ export function formatReviewComment(
   const labels = LABELS[config.language];
   const lines: string[] = [];
 
+  lines.push('<!-- ai-code-reviewer -->');
   lines.push(`## 🤖 ${labels.title}`);
   lines.push('');
 
@@ -71,6 +75,13 @@ export function formatReviewComment(
     lines.push('');
   }
 
+  // Skipped files
+  if (config.skippedFiles && config.skippedFiles.length > 0) {
+    lines.push(`<details><summary>⚠️ ${labels.skipped} (${config.skippedFiles.length})</summary>\n`);
+    config.skippedFiles.forEach((f) => lines.push(`- \`${f}\``));
+    lines.push('\n</details>\n');
+  }
+
   // Footer
   lines.push('---');
   lines.push(
@@ -78,6 +89,18 @@ export function formatReviewComment(
   );
 
   return lines.join('\n');
+}
+
+const EXT_TO_LANG: Record<string, string> = {
+  ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx',
+  py: 'python', rb: 'ruby', go: 'go', rs: 'rust', java: 'java',
+  kt: 'kotlin', swift: 'swift', cs: 'csharp', cpp: 'cpp', c: 'c',
+  sh: 'bash', sql: 'sql', html: 'html', css: 'css', scss: 'scss',
+};
+
+function inferLang(file?: string): string {
+  const ext = file?.split('.').pop()?.toLowerCase() ?? '';
+  return EXT_TO_LANG[ext] ?? '';
 }
 
 function formatItem(item: ReviewItem, index: number): string {
@@ -95,8 +118,9 @@ function formatItem(item: ReviewItem, index: number): string {
   parts.push(header);
 
   if (item.code) {
+    const lang = inferLang(item.file);
     parts.push('');
-    parts.push('```suggestion');
+    parts.push(`\`\`\`${lang}`);
     parts.push(item.code);
     parts.push('```');
   }

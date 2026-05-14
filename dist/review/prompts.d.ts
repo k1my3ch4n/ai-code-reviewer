@@ -1,4 +1,5 @@
 import { FileChange, PullRequestInfo } from '../types';
+export declare function splitFilesIntoBatches(files: FileChange[]): FileChange[][];
 interface PromptConfig {
     language: 'ko' | 'en';
     prInfo: PullRequestInfo;

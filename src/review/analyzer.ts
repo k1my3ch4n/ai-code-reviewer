@@ -7,7 +7,7 @@ export function filterFiles(
 ): FileChange[] {
   return files.filter((file) => {
     for (const pattern of excludePatterns) {
-      if (minimatch(file.filename, pattern.trim())) {
+      if (minimatch(file.filename, pattern.trim(), { matchBase: true })) {
         return false;
       }
     }

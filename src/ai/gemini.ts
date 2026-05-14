@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AIClient, AIConfig } from './types';
 import { ReviewResult } from '../types';
+import { withRetry } from './retry';
 
 export class GeminiClient implements AIClient {
   private model;
@@ -12,7 +13,9 @@ export class GeminiClient implements AIClient {
   }
 
   async review(prompt: string): Promise<ReviewResult> {
-    const result = await this.model.generateContent(prompt);
+    const result = await withRetry(() =>
+      this.model.generateContent(prompt, { signal: AbortSignal.timeout(60_000) })
+    );
     const response = result.response;
     const text = response.text();
 
