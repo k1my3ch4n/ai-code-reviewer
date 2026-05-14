@@ -14,16 +14,19 @@ export class ClaudeClient implements AIClient {
   }
 
   async review(prompt: string): Promise<ReviewResult> {
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 4096,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-    });
+    const response = await this.client.messages.create(
+      {
+        model: this.model,
+        max_tokens: 4096,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      },
+      { signal: AbortSignal.timeout(60_000) }
+    );
 
     const content = response.content[0];
     if (content.type !== 'text') {
