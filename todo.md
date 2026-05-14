@@ -42,17 +42,17 @@
 
 ### 🟢 낮음
 
-- [ ] **`suggestion` 코드블록 방식 수정** (`src/review/formatter.ts`)
+- [x] **`suggestion` 코드블록 방식 수정** (`src/review/formatter.ts`)
   - `issues.createComment`에서는 suggestion 버튼이 작동하지 않음
-  - `pulls.createReviewComment`(인라인 리뷰) 방식으로 전환하거나 일반 코드블록으로 변경
+  - 파일 확장자 기반 언어 추론 후 일반 코드블록으로 변경
 
-- [ ] **`model` 입력값 유효성 검증** (`src/index.ts`)
+- [x] **`model` 입력값 유효성 검증** (`src/index.ts`)
   - 잘못된 모델명 입력 시 API 오류로 전체 실패
-  - 허용 모델 목록 정의 후 사전 검증 또는 에러 메시지 개선
+  - 허용 모델 목록(`VALID_MODELS`) 정의 후 사전 검증 및 명확한 에러 메시지 제공
 
-- [ ] **patch 없는 파일 처리 안내** (`src/review/analyzer.ts`)
+- [x] **patch 없는 파일 처리 안내** (`src/review/formatter.ts`, `src/index.ts`)
   - 파일이 너무 크면 GitHub API가 `patch`를 반환하지 않음 — 현재 조용히 건너뜀
-  - 건너뛴 파일 목록을 리뷰 코멘트 하단에 표시
+  - 건너뛴 파일 목록을 리뷰 코멘트 하단 `<details>` 섹션에 표시
 
 ---
 
