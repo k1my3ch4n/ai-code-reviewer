@@ -31,7 +31,7 @@ export class GitHubClient {
   }
 
   async getChangedFiles(prInfo: PullRequestInfo): Promise<FileChange[]> {
-    const { data: files } = await this.octokit.rest.pulls.listFiles({
+    const files = await this.octokit.paginate(this.octokit.rest.pulls.listFiles, {
       owner: prInfo.owner,
       repo: prInfo.repo,
       pull_number: prInfo.pullNumber,
@@ -51,11 +51,39 @@ export class GitHubClient {
     prInfo: PullRequestInfo,
     body: string
   ): Promise<void> {
-    await this.octokit.rest.issues.createComment({
+    const existingCommentId = await this.findExistingReviewComment(prInfo);
+
+    if (existingCommentId) {
+      await this.octokit.rest.issues.updateComment({
+        owner: prInfo.owner,
+        repo: prInfo.repo,
+        comment_id: existingCommentId,
+        body,
+      });
+    } else {
+      await this.octokit.rest.issues.createComment({
+        owner: prInfo.owner,
+        repo: prInfo.repo,
+        issue_number: prInfo.pullNumber,
+        body,
+      });
+    }
+  }
+
+  private async findExistingReviewComment(prInfo: PullRequestInfo): Promise<number | null> {
+    const { data: comments } = await this.octokit.rest.issues.listComments({
       owner: prInfo.owner,
       repo: prInfo.repo,
       issue_number: prInfo.pullNumber,
-      body,
+      per_page: 100,
     });
+
+    const found = comments.find(
+      (comment) =>
+        comment.user?.type === 'Bot' &&
+        comment.body?.includes('<!-- ai-code-reviewer -->')
+    );
+
+    return found?.id ?? null;
   }
 }

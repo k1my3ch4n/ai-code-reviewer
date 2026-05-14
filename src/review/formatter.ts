@@ -36,6 +36,7 @@ export function formatReviewComment(
   const labels = LABELS[config.language];
   const lines: string[] = [];
 
+  lines.push('<!-- ai-code-reviewer -->');
   lines.push(`## 🤖 ${labels.title}`);
   lines.push('');
 
