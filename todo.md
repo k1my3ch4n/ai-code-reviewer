@@ -28,17 +28,17 @@
 
 ### 🟡 중간
 
-- [ ] **큰 PR 분할 처리** (`src/review/prompts.ts`)
+- [x] **큰 PR 분할 처리** (`src/review/prompts.ts`, `src/index.ts`)
   - 대용량 diff를 하나의 프롬프트로 전송 → 토큰 한계 초과 또는 품질 저하
-  - 파일별 또는 N토큰 단위로 분할하여 순차 처리
+  - 30,000자 기준 배치 분할 후 병렬 리뷰, 결과 병합 처리
 
-- [ ] **API 재시도 로직 추가** (`src/ai/claude.ts`, `src/ai/gemini.ts`)
+- [x] **API 재시도 로직 추가** (`src/ai/claude.ts`, `src/ai/gemini.ts`, `src/ai/retry.ts`)
   - 429(rate limit), 503(서비스 일시 중단) 등 일시 오류 시 즉시 실패
-  - exponential backoff로 최대 3회 재시도
+  - exponential backoff (1s → 2s → 4s)로 최대 3회 재시도
 
-- [ ] **파일 필터링 glob 패턴 수정** (`src/review/analyzer.ts`)
+- [x] **파일 필터링 glob 패턴 수정** (`src/review/analyzer.ts`)
   - `minimatch`에서 `*.lock`은 서브디렉토리 파일(`subdir/package-lock.json`)에 미적용
-  - 기본 패턴을 `**/*.lock,**/*.md,...` 형태로 변경 또는 `matchBase: true` 옵션 추가
+  - `matchBase: true` 옵션 추가로 경로에 관계없이 파일명 기준 매칭
 
 ### 🟢 낮음
 
