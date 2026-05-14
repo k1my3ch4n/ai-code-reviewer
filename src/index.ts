@@ -3,11 +3,12 @@ import { GitHubClient } from './github';
 import { createAIClient } from './ai';
 import {
   createReviewPrompt,
+  splitFilesIntoBatches,
   filterFiles,
   hasReviewableChanges,
   formatReviewComment,
 } from './review';
-import { ActionInputs } from './types';
+import { ActionInputs, ReviewResult } from './types';
 
 async function run(): Promise<void> {
   try {
@@ -33,14 +34,26 @@ async function run(): Promise<void> {
       return;
     }
 
-    const prompt = createReviewPrompt({
-      language: inputs.language,
-      prInfo,
-      files,
-    });
-
     core.info('Requesting AI review...');
-    const reviewResult = await aiClient.review(prompt);
+    const batches = splitFilesIntoBatches(files);
+    core.info(`Processing ${batches.length} batch(es)...`);
+
+    const batchResults = await Promise.all(
+      batches.map((batchFiles) => {
+        const prompt = createReviewPrompt({ language: inputs.language, prInfo, files: batchFiles });
+        return aiClient.review(prompt);
+      })
+    );
+
+    const reviewResult: ReviewResult = batchResults.reduce(
+      (merged, result, index) => ({
+        summary: index === 0 ? result.summary : `${merged.summary}\n${result.summary}`,
+        improvements: [...merged.improvements, ...result.improvements],
+        suggestions: [...merged.suggestions, ...result.suggestions],
+        positives: [...merged.positives, ...result.positives],
+      }),
+      { summary: '', improvements: [], suggestions: [], positives: [] } as ReviewResult
+    );
 
     const comment = formatReviewComment(reviewResult, {
       language: inputs.language,

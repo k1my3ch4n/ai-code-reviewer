@@ -1,5 +1,28 @@
 import { FileChange, PullRequestInfo } from '../types';
 
+export function splitFilesIntoBatches(files: FileChange[]): FileChange[][] {
+  const batches: FileChange[][] = [];
+  let currentBatch: FileChange[] = [];
+  let currentSize = 0;
+
+  for (const file of files) {
+    const size = file.patch?.length ?? 0;
+    if (currentSize + size > MAX_DIFF_CHARS && currentBatch.length > 0) {
+      batches.push(currentBatch);
+      currentBatch = [];
+      currentSize = 0;
+    }
+    currentBatch.push(file);
+    currentSize += size;
+  }
+
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
+}
+
 interface PromptConfig {
   language: 'ko' | 'en';
   prInfo: PullRequestInfo;
@@ -78,6 +101,7 @@ Consider the following when reviewing:
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_BODY_LENGTH = 500;
+const MAX_DIFF_CHARS = 30_000;
 
 function sanitize(text: string, maxLength: number): string {
   return text.slice(0, maxLength);
