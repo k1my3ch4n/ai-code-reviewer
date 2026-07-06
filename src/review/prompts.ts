@@ -1,4 +1,4 @@
-import { FileChange, PullRequestInfo } from '../types';
+import { FileChange, PullRequestInfo } from "../types";
 
 export function splitFilesIntoBatches(files: FileChange[]): FileChange[][] {
   const batches: FileChange[][] = [];
@@ -24,7 +24,7 @@ export function splitFilesIntoBatches(files: FileChange[]): FileChange[][] {
 }
 
 interface PromptConfig {
-  language: 'ko' | 'en';
+  language: "ko" | "en";
   prInfo: PullRequestInfo;
   files: FileChange[];
 }
@@ -112,7 +112,7 @@ export function createReviewPrompt(config: PromptConfig): string {
   const systemPrompt = SYSTEM_PROMPTS[language];
 
   const title = sanitize(prInfo.title, MAX_TITLE_LENGTH);
-  const body = sanitize(prInfo.body || '(설명 없음)', MAX_BODY_LENGTH);
+  const body = sanitize(prInfo.body || "(설명 없음)", MAX_BODY_LENGTH);
 
   const filesContent = files
     .filter((f) => f.patch)
@@ -124,9 +124,9 @@ export function createReviewPrompt(config: PromptConfig): string {
 \`\`\`diff
 ${f.patch}
 \`\`\`
-`
+`,
     )
-    .join('\n');
+    .join("\n");
 
   return `${systemPrompt}
 

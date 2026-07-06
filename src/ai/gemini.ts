@@ -1,20 +1,22 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { AIClient, AIConfig } from './types';
-import { ReviewResult } from '../types';
-import { withRetry } from './retry';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { AIClient, AIConfig } from "./types";
+import { ReviewResult } from "../types";
+import { withRetry } from "./retry";
 
 export class GeminiClient implements AIClient {
   private model;
 
   constructor(config: AIConfig) {
     const genAI = new GoogleGenerativeAI(config.apiKey);
-    const modelName = config.model || 'gemini-1.5-flash';
+    const modelName = config.model || "gemini-2.5-flash";
     this.model = genAI.getGenerativeModel({ model: modelName });
   }
 
   async review(prompt: string): Promise<ReviewResult> {
     const result = await withRetry(() =>
-      this.model.generateContent(prompt, { signal: AbortSignal.timeout(60_000) })
+      this.model.generateContent(prompt, {
+        signal: AbortSignal.timeout(60_000),
+      }),
     );
     const response = result.response;
     const text = response.text();
