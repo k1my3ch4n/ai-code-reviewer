@@ -1,7 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { AIClient, AIConfig } from './types';
-import { ReviewResult } from '../types';
-import { withRetry } from './retry';
+import Anthropic from "@anthropic-ai/sdk";
+import { AIClient, AIConfig } from "./types";
+import { ReviewResult } from "../types";
+import { withRetry } from "./retry";
 
 export class ClaudeClient implements AIClient {
   private client: Anthropic;
@@ -11,7 +11,7 @@ export class ClaudeClient implements AIClient {
     this.client = new Anthropic({
       apiKey: config.apiKey,
     });
-    this.model = config.model || 'claude-sonnet-4-20250514';
+    this.model = config.model || "claude-sonnet-4-20250514";
   }
 
   async review(prompt: string): Promise<ReviewResult> {
@@ -20,15 +20,15 @@ export class ClaudeClient implements AIClient {
         {
           model: this.model,
           max_tokens: 4096,
-          messages: [{ role: 'user', content: prompt }],
+          messages: [{ role: "user", content: prompt }],
         },
-        { signal: AbortSignal.timeout(60_000) }
-      )
+        { signal: AbortSignal.timeout(60_000) },
+      ),
     );
 
     const content = response.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type from Claude');
+    if (content.type !== "text") {
+      throw new Error("Unexpected response type from Claude");
     }
 
     return this.parseResponse(content.text);

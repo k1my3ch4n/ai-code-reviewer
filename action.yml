@@ -25,7 +25,7 @@ inputs:
     required: false
     default: 'ko'
   model:
-    description: 'AI model to use (claude: claude-sonnet-4-20250514, gemini: gemini-1.5-flash)'
+    description: 'AI model to use (claude: claude-sonnet-4-20250514, gemini: gemini-2.5-flash)'
     required: false
   exclude-patterns:
     description: 'Glob patterns to exclude from review (comma-separated)'
